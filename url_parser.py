@@ -1,8 +1,8 @@
 import dotenv
+
 dotenv.load_dotenv()
 import os
 import openai
-from webscraper import call_nhs_search
 
 import pprint
 from langchain.text_splitter import RecursiveCharacterTextSplitter
@@ -10,16 +10,6 @@ from langchain.document_loaders import AsyncChromiumLoader
 from langchain.document_transformers import BeautifulSoupTransformer
 from langchain.chains import create_extraction_chain
 from langchain.chat_models import ChatOpenAI
-
-from typing import Sequence, Optional
-from langchain.prompts import (
-    PromptTemplate,
-    ChatPromptTemplate,
-    HumanMessagePromptTemplate,
-)
-from langchain.llms import OpenAI
-from pydantic import BaseModel, Field, validator
-from langchain.output_parsers import PydanticOutputParser
 
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
@@ -33,8 +23,10 @@ schema = {
     "required": ["article_title"],
 }
 
+
 def extract(content: str, schema: dict):
     return create_extraction_chain(schema=schema, llm=llm).run(content)
+
 
 ###############
 # This function returns the relevant information from URLs
@@ -42,18 +34,17 @@ def extract(content: str, schema: dict):
 # Output: list of relevant information
 ###############
 def scrape_with_playwright(urls, schema):
-    
     loader = AsyncChromiumLoader(urls)
     docs = loader.load()
     bs_transformer = BeautifulSoupTransformer()
-    docs_transformed = bs_transformer.transform_documents(docs,tags_to_extract=["span"])
+    docs_transformed = bs_transformer.transform_documents(docs, tags_to_extract=["span"])
     print("Extracting content with LLM")
-    
+
     # Grab the first 1000 tokens of the site
-    splitter = RecursiveCharacterTextSplitter.from_tiktoken_encoder(chunk_size=1000, 
+    splitter = RecursiveCharacterTextSplitter.from_tiktoken_encoder(chunk_size=1000,
                                                                     chunk_overlap=0)
     splits = splitter.split_documents(docs_transformed)
-    
+
     extracted_content = []
 
     # Process splits
@@ -67,10 +58,12 @@ def scrape_with_playwright(urls, schema):
         except:
             print("Error with url. Moving to next url")
             continue
-        
+
     return extracted_content
 
-urls = ["https://www.nhs.uk/conditions/lung-cancer/", "https://www.nhs.uk/conditions/lung-cancer/treatment/", "https://www.nhs.uk/conditions/lung-cancer/symptoms/"]
+
+urls = ["https://www.nhs.uk/conditions/lung-cancer/", "https://www.nhs.uk/conditions/lung-cancer/treatment/",
+        "https://www.nhs.uk/conditions/lung-cancer/symptoms/"]
 try:
     extracted_content = scrape_with_playwright(urls, schema=schema)
 except Exception as e:
