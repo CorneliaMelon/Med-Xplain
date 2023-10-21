@@ -1,13 +1,14 @@
-import streamlit as st
-import requests
 import json
-from jsonschema import validate, ValidationError
+
+import requests
+import streamlit as st
 from humanloop import Humanloop
 
 # Constants
-API_KEY = "add key" # add Humanloop API Key
-PROJECT_ID = "add ID" # add project ID
+API_KEY = "add key"  # add Humanloop API Key
+PROJECT_ID = "add ID"  # add project ID
 hl = Humanloop(api_key=API_KEY)
+
 
 def search_papers(search_term, page=1):
     base_url = 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi'
@@ -46,7 +47,7 @@ def run_conversation(content):
         project_id=PROJECT_ID,
         messages=messages,
     )
-    response = response.body["data"][0] # first response
+    response = response.body["data"][0]  # first response
 
     if response.get("tool_call"):
         # Step 2: call the function
@@ -78,6 +79,7 @@ def run_conversation(content):
         return second_response.body["data"][0]
     else:
         return response
+
 
 # Streamlit app - run if you want to use Streamlit
 
@@ -112,6 +114,7 @@ def run_app():
         # Add assistant response to chat history
         st.session_state.messages.append({"role": "assistant", "content": response_content})
 
+
 # Actually run the app
-if __main__=="__main__":
+if __name__ == "__main__":
     run_app()
