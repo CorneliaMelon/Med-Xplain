@@ -26,7 +26,7 @@ pinecone.init(
 )
 index = pinecone.Index('chatbot')
 
-index = pinecone.Index(index_name='chatbot', project_name='Chatbot application')
+index = pinecone.Index(index_name='chatbot')
 
 st.subheader("Chatbot with Langchain, ChatGPT, Pinecone, and Streamlit")
 
