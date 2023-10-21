@@ -1,7 +1,6 @@
 # Med-Xplain
 # Your tool for post-diagnosis decision making. 
 
-Overview
 Med-Xplain is a patient-centric tool that leverages Generative AI to produce text-based medical summaries. This tool serves as a post-diagnostic aid with the primary goal of increasing patient awareness about their treatment options and improving clinician-patient conversations. It also acts as an intermediary interface between healthcare providers and patients, addressing the need for enhanced patient involvement in their care while alleviating the burden on clinicians.
 
 Key Features
