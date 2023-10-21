@@ -1,31 +1,117 @@
 import streamlit as st
+import requests
+import json
+from jsonschema import validate, ValidationError
+from humanloop import Humanloop
 
-from chatbot_main import chatbot_response
+# Constants
+API_KEY = "add key" # add Humanloop API Key
+PROJECT_ID = "add ID" # add project ID
+hl = Humanloop(api_key=API_KEY)
 
-# Custom CSS to centralize content
-st.markdown("""
-    <style>
-    .center {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        text-align: center;
-    }
-    </style>
-    """, unsafe_allow_html=True)
+def search_papers(search_term, page=1):
+    base_url = 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi'
+    url = f'{base_url}?db=pubmed&term={search_term}&retmode=json&retstart={((page - 1) * 3)}&retmax=3'
+    try:
+        response = requests.get(url)
+        data = response.json()
+        pubmed_ids = data['esearchresult']['idlist']
 
-# Centralize the title
-st.markdown('<div class="center"><h1>Med-Xplain</h1></div>', unsafe_allow_html=True)
+        results = []
 
-# Add some space between the title and the logo
-st.markdown('<div class="center" style="margin-top: 20px;">', unsafe_allow_html=True)
-st.image("./images/MedXPlain_LOGO.png", width=200)
-st.markdown('</div>', unsafe_allow_html=True)
+        for pubmed_id in pubmed_ids:
+            summary_url = f'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db=pubmed&id={pubmed_id}&retmode=json'
+            summary_response = requests.get(summary_url)
+            summary_data = summary_response.json()
+            article_title = summary_data['result'][pubmed_id]['title']
+            article_url = f'https://pubmed.ncbi.nlm.nih.gov/{pubmed_id}/'
+            authors = summary_data['result'][pubmed_id]['authors']
+            author_names = [author['name'] for author in authors]
+            final_response = f"<a href='{article_url}' target='_blank'>{article_title}</a> by {', '.join(author_names)}"
+            results.append(final_response)
 
-user_input = st.text_input("How can we help you today?", "")
-if st.button("Send"):
-    response = chatbot_response(user_input)
-    st.text_area("Chatbot:", response)
+        for result in results:
+            print(result)
 
-st.write(
-    "Welcome to Med-Xplain, a patient informational tool. We aim to help you learn more about your treatment options post-diagnosis.")
+        return results
+
+    except requests.exceptions.RequestException as e:
+        print(f"Error: {str(e)}")
+
+
+def run_conversation(content):
+    # Step 1: send the conversation and available functions to GPT
+    messages = [{"role": "user", "content": content}]
+    response = hl.chat_deployed(
+        project_id=PROJECT_ID,
+        messages=messages,
+    )
+    response = response.body["data"][0] # first response
+
+    if response.get("tool_call"):
+        # Step 2: call the function
+        tool_name = response["tool_call"]["name"]
+        tool_args = json.loads(response["tool_call"]["arguments"])
+
+        if tool_name == 'get_pub_med_paper':
+            tool_result = search_papers(search_term=tool_args.get("search_term"))
+        elif tool_name == 'get_wolfram':
+            tool_result = query_wolfram_alpha(query=tool_args.get("query"))
+        else:
+            raise NotImplementedError("My code does not know about this tool!")
+
+        # Step 3: send the response back to the model
+        messages.append(
+            {"role": "assistant", "content": "", "tool_call": response["tool_call"]}
+        )
+        messages.append(
+            {
+                "role": "tool",
+                "name": tool_name,
+                "content": json.dumps(tool_result),
+            }
+        )
+        second_response = hl.chat_deployed(
+            project_id=PROJECT_ID,
+            messages=messages,
+        )
+        return second_response.body["data"][0]
+    else:
+        return response
+
+# Streamlit app - run if you want to use Streamlit
+
+def run_app():
+    st.title("Med-Xplain")
+
+    # Initialize chat history
+    if "messages" not in st.session_state:
+        st.session_state.messages = []
+
+    # Display chat messages from history on app rerun
+    for message in st.session_state.messages:
+        with st.chat_message(message["role"]):
+            st.markdown(message["content"])
+
+    # React to user input
+    if prompt := st.chat_input("What can I help with?"):
+        # Display user message in chat message container
+        st.chat_message("user").markdown(prompt)
+        # Add user message to chat history
+        st.session_state.messages.append({"role": "user", "content": prompt})
+
+        # Call your run_conversation function
+        response_data = run_conversation(prompt)
+
+        # Extract the desired message from the response_data
+        response_content = response_data["output"] if response_data else f"Error processing request: {prompt}"
+
+        # Display assistant response in chat message container
+        with st.chat_message("assistant"):
+            st.markdown(response_content)
+        # Add assistant response to chat history
+        st.session_state.messages.append({"role": "assistant", "content": response_content})
+
+# Actually run the app
+if __main__=="__main__":
+    run_app()
