@@ -1,13 +1,17 @@
 import json
 
+import dotenv
 import requests
 import streamlit as st
 from humanloop import Humanloop
 
+dotenv.load_dotenv()
+import os
+
 # Constants
-API_KEY = "add key"  # add Humanloop API Key
-PROJECT_ID = "add ID"  # add project ID
-hl = Humanloop(api_key=API_KEY)
+HUMAN_LOOP_API_KEY = os.getenv("HUMAN_LOOP_API_KEY")  # add Humanloop API Key
+PROJECT_ID = os.getenv("PROJECT_ID")  # add project ID
+hl = Humanloop(api_key=HUMAN_LOOP_API_KEY)
 
 
 def search_papers(search_term, page=1):
@@ -47,17 +51,25 @@ def run_conversation(content):
         project_id=PROJECT_ID,
         messages=messages,
     )
+
     response = response.body["data"][0]  # first response
+    print(response, messages)
+    print(response["raw_output"])
 
-    if response.get("tool_call"):
+    if response.get("output") != None and response.get("output") in ["nhs", "pdf", "pubMed"]:
         # Step 2: call the function
-        tool_name = response["tool_call"]["name"]
+        tool_name = response["output"]
+        # TODO: pubMed needs to return search arguments
         tool_args = json.loads(response["tool_call"]["arguments"])
-
-        if tool_name == 'get_pub_med_paper':
+        if tool_name == 'pubMed':
+            print("selected pubmed")
             tool_result = search_papers(search_term=tool_args.get("search_term"))
-        elif tool_name == 'get_wolfram':
-            tool_result = query_wolfram_alpha(query=tool_args.get("query"))
+        elif tool_name == 'nhs':
+            print("selected nhs")
+            tool_result = "query_wolfram_alpha(query=tool_args.get('query'))"
+        elif tool_name == 'pdf':
+            print("selected pdf")
+            tool_result = "query_wolfram_alpha(query=tool_args.get('query'))"
         else:
             raise NotImplementedError("My code does not know about this tool!")
 
@@ -79,6 +91,35 @@ def run_conversation(content):
         return second_response.body["data"][0]
     else:
         return response
+    # if response.get("tool_call"):
+    #     # Step 2: call the function
+    #     tool_name = response["tool_call"]["name"]
+    #     tool_args = json.loads(response["tool_call"]["arguments"])
+    #
+    #     if tool_name == 'get_pub_med_paper':
+    #         tool_result = search_papers(search_term=tool_args.get("search_term"))
+    #     elif tool_name == 'nhs':
+    #         print("selected nhs")
+    #         tool_result = "query_wolfram_alpha(query=tool_args.get('query'))"
+    #     else:
+    #         raise NotImplementedError("My code does not know about this tool!")
+    #
+    #     # Step 3: send the response back to the model
+    #     messages.append(
+    #         {"role": "assistant", "content": "", "tool_call": response["tool_call"]}
+    #     )
+    #     messages.append(
+    #         {
+    #             "role": "tool",
+    #             "name": tool_name,
+    #             "content": json.dumps(tool_result),
+    #         }
+    #     )
+    #     second_response = hl.chat_deployed(
+    #         project_id=PROJECT_ID,
+    #         messages=messages,
+    #     )
+    #     return second_response.body["data"][0]
 
 
 # Streamlit app - run if you want to use Streamlit
