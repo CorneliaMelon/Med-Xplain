@@ -1,5 +1,3 @@
-import json
-
 import dotenv
 import requests
 import streamlit as st
@@ -54,16 +52,17 @@ def run_conversation(content):
 
     response = response.body["data"][0]  # first response
     print(response, messages)
-    print(response["raw_output"])
+    print(response["output"])
 
-    if response.get("output") != None and response.get("output") in ["nhs", "pdf", "pubMed"]:
+    if response.get("output") != None:
         # Step 2: call the function
         tool_name = response["output"]
         # TODO: pubMed needs to return search arguments
-        tool_args = json.loads(response["tool_call"]["arguments"])
-        if tool_name == 'pubMed':
+
+        if tool_name.startswith('pubMed'):
             print("selected pubmed")
-            tool_result = search_papers(search_term=tool_args.get("search_term"))
+            pubmed_args = response["output"].split("-")[1:]
+            tool_result = search_papers(search_term=pubmed_args)
         elif tool_name == 'nhs':
             print("selected nhs")
             tool_result = "query_wolfram_alpha(query=tool_args.get('query'))"
@@ -75,15 +74,15 @@ def run_conversation(content):
 
         # Step 3: send the response back to the model
         messages.append(
-            {"role": "assistant", "content": "", "tool_call": response["tool_call"]}
-        )
-        messages.append(
             {
-                "role": "tool",
-                "name": tool_name,
-                "content": json.dumps(tool_result),
+                "role": "assistant",
+                # "name": tool_name,
+                "content": str(tool_result),
             }
         )
+        # messages.append(
+        #     {"role": "assistant", "content": "", "tool_call": response["tool_call"]}
+        # )
         second_response = hl.chat_deployed(
             project_id=PROJECT_ID,
             messages=messages,
