@@ -2,6 +2,7 @@ from langchain.document_loaders import AsyncChromiumLoader
 from langchain.document_transformers import BeautifulSoupTransformer
 import pprint
 
+
 ###############
 # This function returns the relevant information from ONE URL
 # Input: one URL
