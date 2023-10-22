@@ -1,44 +1,39 @@
+from urllib.parse import urljoin
+
 import dotenv
+import pinecone
 import requests
 import streamlit as st
 from humanloop import Humanloop
-
-#from webscraper import call_nhs_search
-from langchain.chat_models import ChatOpenAI
 from langchain.chains import ConversationChain
+from langchain.chains import create_extraction_chain
 from langchain.chains.conversation.memory import ConversationBufferWindowMemory
+# from webscraper import call_nhs_search
+from langchain.chat_models import ChatOpenAI
 from langchain.prompts import (
     SystemMessagePromptTemplate,
     HumanMessagePromptTemplate,
     ChatPromptTemplate,
     MessagesPlaceholder
 )
-import streamlit as st
-from PIL import Image
-from streamlit_chat import message
-#from utils import *
-import base64
+# from utils import *
 from sentence_transformers import SentenceTransformer
-import pinecone
-import openai
-import streamlit as st
-from urllib.parse import urljoin
-
-import dotenv
-from langchain.chains import create_extraction_chain
 
 dotenv.load_dotenv()
-import os
 import openai
 
 import urllib.parse
+
 dotenv.load_dotenv()
 import os
 import asyncio
+import dotenv
+
+dotenv.load_dotenv()
 if os.name == 'nt':
     asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
-
-openai.api_key = "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"
+OPENAI_API = os.getenv("OPENAI_API_KEY")
+openai.api_key = OPENAI_API
 cache_folder = "path/to/your/cache/directory"
 model = SentenceTransformer('all-MiniLM-L6-v2', cache_folder=cache_folder)
 
@@ -49,13 +44,13 @@ pinecone.init(
 index = pinecone.Index('chatbot')
 
 if 'buffer_memory' not in st.session_state:
-            st.session_state.buffer_memory=ConversationBufferWindowMemory(k=3,return_messages=True)
+    st.session_state.buffer_memory = ConversationBufferWindowMemory(k=3, return_messages=True)
 # Constants
 
-HUMAN_LOOP_API_KEY = "hl_sk_6b0a6941b44ecd56dd4973671e517e172d62f3ad71049571"
-#PROJECT_ID = os.getenv("PROJECT_ID") 
+HUMAN_LOOP_API_KEY = os.getenv("HUMAN_LOOP_API_KEY")
+PROJECT_ID = os.getenv("PROJECT_ID")
 #  # add project ID
-PROJECT_ID = 'pr_KhtlyvJhwaWe0AE53pFLe'
+# PROJECT_ID = 'pr_KhtlyvJhwaWe0AE53pFLe'
 hl = Humanloop(api_key=HUMAN_LOOP_API_KEY)
 
 template_text = """
@@ -73,12 +68,13 @@ template_text = """
         """
 system_msg_template = SystemMessagePromptTemplate.from_template(template=template_text)
 
-
 human_msg_template = HumanMessagePromptTemplate.from_template(template="{input}")
 
-prompt_template = ChatPromptTemplate.from_messages([system_msg_template, MessagesPlaceholder(variable_name="history"), human_msg_template])
-llm = ChatOpenAI(model_name="gpt-3.5-turbo", openai_api_key="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")
+prompt_template = ChatPromptTemplate.from_messages(
+    [system_msg_template, MessagesPlaceholder(variable_name="history"), human_msg_template])
+llm = ChatOpenAI(model_name="gpt-3.5-turbo", openai_api_key=OPENAI_API)
 conversation = ConversationChain(memory=st.session_state.buffer_memory, prompt=prompt_template, llm=llm, verbose=True)
+
 
 def search_papers(search_term, page=1):
     base_url = 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi'
@@ -109,11 +105,13 @@ def search_papers(search_term, page=1):
     except requests.exceptions.RequestException as e:
         print(f"Error: {str(e)}")
 
+
 def find_match(input):
     input_em = model.encode(input).tolist()
     result = index.query(input_em, top_k=2, includeMetadata=True)
-    #return result['matches'][0]['metadata']['text']+"\n"+result['matches'][1]['metadata']['text']
+    # return result['matches'][0]['metadata']['text']+"\n"+result['matches'][1]['metadata']['text']
     return result['matches'][0]
+
 
 def query_refiner(query):
     response = openai.Completion.create(
@@ -127,41 +125,35 @@ def query_refiner(query):
     )
     return response['choices'][0]['text'].strip()
 
+
 def extract(content: str, schema: dict):
     from langchain.chat_models import ChatOpenAI
-    llm = ChatOpenAI(temperature=0, model="gpt-3.5-turbo-0613", openai_api_key="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")
-    #llm = ChatOpenAI(model_name="gpt-3.5-turbo", openai_api_key="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")
+    llm = ChatOpenAI(temperature=0, model="gpt-3.5-turbo-0613",
+                     openai_api_key=OPENAI_API)
+
     return create_extraction_chain(schema=schema, llm=llm).run(content)
-                                                               
+
+
 def call_nhs_search(query):
     from langchain.document_loaders import AsyncChromiumLoader
-    from langchain.document_transformers import BeautifulSoupTransformer
+    # from langchain.document_transformers import BeautifulSoupTransformer
 
+    from bs4 import BeautifulSoup
     # Load HTML
     loader = AsyncChromiumLoader(
-        [f"https://www.nhs.uk/search/results?q={'treatments for ' + urllib.parse.quote(query)})"])
+        [f"https://www.nhs.uk/search/results?q={urllib.parse.quote(query)})"])
     html = loader.load()
 
-    bs_transformer = BeautifulSoupTransformer()
+    soup = BeautifulSoup(html[0].page_content, "html.parser")
+    link_tags = soup.find_all('a')
 
-    docs_transformed = bs_transformer.transform_documents(html,
-                                                          unwanted_tags=["script", "style", "head", "title", "meta",
-                                                                         "[document]", "header"], remove_lines=True,
-                                                          tags_to_extract=["a"], attributes_to_extract=["href"])
-    print('**BeautifulSoupTransformer done')
-    schema = {
-        "properties": {
-            "page_title": {"type": "string"},
-            "page_url": {"type": "string"},
-        },
-        "required": ["page_title", "page_url"],
-    }
-    extracted_content = extract(docs_transformed[0].page_content, schema=schema)
+    # Create a list of dictionaries with title and href as key-value pairs
+    links_with_titles = [
+        {"page_title": tag.get_text().strip("\n "), "page_url": "https://www.nhs.uk/" + tag.get('href'), } for
+        tag in link_tags[11:-10]]
 
-    if len(extracted_content) > 0 and extracted_content[0]["page_title"] == "Cookies":
-        extracted_content.pop(0)
+    return links_with_titles
 
-    return extracted_content
 
 def run_conversation(content):
     # Step 1: send the conversation and available functions to GPT
@@ -172,8 +164,6 @@ def run_conversation(content):
     )
 
     response = response.body["data"][0]  # first response
-    print(response, messages)
-    print(response["output"])
 
     if response.get("output") != None:
         # Step 2: call the function
@@ -181,29 +171,31 @@ def run_conversation(content):
         # TODO: pubMed needs to return search arguments
 
         if tool_name.startswith('pubMed'):
-            print("selected pubmed")
+
             pubmed_args = response["output"].split("-")[1:]
             tool_result = search_papers(search_term=pubmed_args)
         elif tool_name.startswith('nhs'):
             print("selected nhs")
             # tool_result = "query_wolfram_alpha(query=tool_args.get('query'))"
             nhs_args = response["output"].split("-")[1:]
-            tool_result = "The following links are treatment options from the nhs, highlight that they are not a substitute for a physician's advice\t" + str(
-                call_nhs_search(query=" ".join(
-                    nhs_args)))
-            #return tool_result,tool_name
+            tool_result = (
+                    "Highlight the following links for my treatment options from the nhs, and also note that they are not a substitute for a physician's advice\t" + str(
+                call_nhs_search(query=" ".join(nhs_args))))
+            print(tool_result)
+            # return tool_result,tool_name
         elif tool_name.startswith('pdf'):
             print("selected pdf")
-            conversation = ConversationChain(memory=st.session_state.buffer_memory, prompt=prompt_template, llm=llm, verbose=True)
+            conversation = ConversationChain(memory=st.session_state.buffer_memory, prompt=prompt_template, llm=llm,
+                                             verbose=True)
             refined_query = query_refiner(response)
             context = find_match(refined_query)
             print(context)
             tool_result = conversation.predict(input=f"Query:\n{context}")
-            #tool_result = conversation.predict(input=f"Query:\n{response}")
-            #print(tool_result)
-            return tool_result,tool_name
+            # tool_result = conversation.predict(input=f"Query:\n{response}")
+            # print(tool_result)
+            return tool_result
             # tool_result = "query_wolfram_alpha(query=tool_args.get('query'))"
-            pass
+
             # response = conversation.predict(input=f"Query:\n{query}")
             # response = limit_words(response)
         else:
@@ -217,15 +209,17 @@ def run_conversation(content):
                 "content": str(tool_result),
             }
         )
-        
+
         second_response = hl.chat_deployed(
             project_id=PROJECT_ID,
             messages=messages,
         )
-        return second_response.body["data"][0]
+        print(second_response.body["data"])
+        return second_response.body["data"][0]["output"]
     else:
         return response
-    
+
+
 # Streamlit app - run if you want to use Streamlit
 
 def run_app():
@@ -247,13 +241,12 @@ def run_app():
         # Add user message to chat history
         st.session_state.messages.append({"role": "user", "content": prompt})
 
-        
         # Call your run_conversation function
         response_data = run_conversation(prompt)
 
-        #if tool_name.startswith('nhs'):
-            # Extract the desired message from the response_data
-        #response_data = response_data["output"] if response_data else f"Error processing request: {prompt}"
+        # if tool_name.startswith('nhs'):
+        # Extract the desired message from the response_data
+        # response_data = response_data["output"] if response_data else f"Error processing request: {prompt}"
 
         # Display assistant response in chat message container
         with st.chat_message("assistant"):
