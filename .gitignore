@@ -12,3 +12,6 @@ __pycache__/
 .env
 
 venv/*
+
+.DS_Store
+path/*
