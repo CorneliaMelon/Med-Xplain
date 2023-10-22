@@ -1,21 +1,18 @@
-from langchain.chat_models import ChatOpenAI
+import base64
+
 from langchain.chains import ConversationChain
 from langchain.chains.conversation.memory import ConversationBufferWindowMemory
+from langchain.chat_models import ChatOpenAI
 from langchain.prompts import (
     SystemMessagePromptTemplate,
     HumanMessagePromptTemplate,
     ChatPromptTemplate,
     MessagesPlaceholder
 )
-import streamlit as st
-from PIL import Image
 from streamlit_chat import message
+
+from UI import run_conversation
 from utils import *
-import base64
-from sentence_transformers import SentenceTransformer
-import pinecone
-import openai
-import streamlit as st
 
 st.markdown("""
     <style>
@@ -28,9 +25,8 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-
 # Open the image file
-with open(r"C:/Users/saili/OneDrive/Desktop/kalam/MedXPlain_LOGO_circle.png", "rb") as img_file:
+with open(r"./images/MedXPlain_LOGO.png", "rb") as img_file:
     # Encode the image as base64
     b64 = base64.b64encode(img_file.read()).decode()
 
@@ -44,8 +40,6 @@ st.subheader("Med-Xplain")
 st.write(
     "Welcome to Med-Xplain, a patient informational tool. We aim to help you learn more about your treatment options post-diagnosis.")
 
-
-
 if 'responses' not in st.session_state:
     st.session_state['responses'] = ["How can I assist you?"]
 
@@ -55,8 +49,7 @@ if 'requests' not in st.session_state:
 llm = ChatOpenAI(model_name="gpt-3.5-turbo", openai_api_key="")
 
 if 'buffer_memory' not in st.session_state:
-            st.session_state.buffer_memory=ConversationBufferWindowMemory(k=3,return_messages=True)
-
+    st.session_state.buffer_memory = ConversationBufferWindowMemory(k=3, return_messages=True)
 
 template_text = """
         - Your primary goal is to provide information and guidance about medical treatment options based on the user's questions. Below is an example question; please answer accordingly.Don't include words like i am not a doctor,i am ai bot
@@ -72,17 +65,14 @@ template_text = """
           Please note that the specific treatment plan for asthma can vary depending on the severity of the condition and individual patient needs. Med-Xplain is an assistive technology. Please consult your physician for further guidance and prescriptions.'
         """
 
-
 system_msg_template = SystemMessagePromptTemplate.from_template(template=template_text)
-
 
 human_msg_template = HumanMessagePromptTemplate.from_template(template="{input}")
 
-prompt_template = ChatPromptTemplate.from_messages([system_msg_template, MessagesPlaceholder(variable_name="history"), human_msg_template])
+prompt_template = ChatPromptTemplate.from_messages(
+    [system_msg_template, MessagesPlaceholder(variable_name="history"), human_msg_template])
 
 conversation = ConversationChain(memory=st.session_state.buffer_memory, prompt=prompt_template, llm=llm, verbose=True)
-
-
 
 # container for chat history
 response_container = st.container()
@@ -93,23 +83,22 @@ with textcontainer:
     query = st.text_input("Query: ", key="input")
     submit_button = st.button('Submit')
     if submit_button:
-        if query: # Check if the query is not empty
+        if query:  # Check if the query is not empty
             with st.spinner("typing..."):
                 conversation_string = get_conversation_string()
-                response = conversation.predict(input=f"Query:\n{query}")
-                response = limit_words(response)
+                # response = conversation.predict(input=f"Query:\n{query}")
+                response = run_conversation(query)
+                # response = limit_words(response)
             st.session_state.requests.append(query)
             st.session_state.responses.append(response)
-
- 
 
 with response_container:
     if st.session_state['responses']:
 
         for i in range(len(st.session_state['responses'])):
-            message(st.session_state['responses'][i],key=str(i))
+            message(st.session_state['responses'][i], key=str(i))
             if i < len(st.session_state['requests']):
-                message(st.session_state["requests"][i], is_user=True,key=str(i)+ '_user')
+                message(st.session_state["requests"][i], is_user=True, key=str(i) + '_user')
 
 # Now place feedback options at the bottom
 st.write("### Feedback")

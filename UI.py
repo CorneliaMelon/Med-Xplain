@@ -74,7 +74,10 @@ def run_conversation(content):
                     nhs_args)))
         elif tool_name == 'pdf':
             print("selected pdf")
-            tool_result = "query_wolfram_alpha(query=tool_args.get('query'))"
+            # tool_result = "query_wolfram_alpha(query=tool_args.get('query'))"
+            pass
+            # response = conversation.predict(input=f"Query:\n{query}")
+            # response = limit_words(response)
         else:
             raise NotImplementedError("My code does not know about this tool!")
 
