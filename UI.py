@@ -3,6 +3,8 @@ import requests
 import streamlit as st
 from humanloop import Humanloop
 
+from webscraper import call_nhs_search
+
 dotenv.load_dotenv()
 import os
 
@@ -63,9 +65,13 @@ def run_conversation(content):
             print("selected pubmed")
             pubmed_args = response["output"].split("-")[1:]
             tool_result = search_papers(search_term=pubmed_args)
-        elif tool_name == 'nhs':
+        elif tool_name.startswith('nhs'):
             print("selected nhs")
-            tool_result = "query_wolfram_alpha(query=tool_args.get('query'))"
+            # tool_result = "query_wolfram_alpha(query=tool_args.get('query'))"
+            nhs_args = response["output"].split("-")[1:]
+            tool_result = "The following links are treatment options from the nhs, highlight that they are not a substitute for a physician's advice\t" + str(
+                call_nhs_search(query=" ".join(
+                    nhs_args)))
         elif tool_name == 'pdf':
             print("selected pdf")
             tool_result = "query_wolfram_alpha(query=tool_args.get('query'))"

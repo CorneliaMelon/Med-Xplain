@@ -49,3 +49,4 @@ def initial_chatbot_response(user_input):
     # TODO: Append "Would you like to know more about this treatment?"
 
     return completion["choices"][0]["message"]["content"]
+# lung cancer treatnebt options
