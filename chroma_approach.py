@@ -8,27 +8,43 @@ from langchain.prompts import (
     MessagesPlaceholder
 )
 import streamlit as st
+from PIL import Image
 from streamlit_chat import message
-#from utils import *
-
+from utils import *
+import base64
 from sentence_transformers import SentenceTransformer
 import pinecone
 import openai
 import streamlit as st
-openai.api_key = "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"
-#model = SentenceTransformer('all-MiniLM-L6-v2')
-cache_folder = "path/to/your/cache/directory"
-model = SentenceTransformer('all-MiniLM-L6-v2', cache_folder=cache_folder)
 
-pinecone.init(
-    api_key="0deabe30-31e5-4385-a193-bbeff060b252",  # find at app.pinecone.io
-    environment="gcp-starter"  # next to api key in console
+st.markdown("""
+    <style>
+        .reportview-container {
+            background-color: #00FFFF;
+        }
+        .main {
+            background-color: #00FFFF;
+        }
+    </style>
+    """, unsafe_allow_html=True)
+
+
+# Open the image file
+with open(r"C:/Users/saili/OneDrive/Desktop/kalam/MedXPlain_LOGO_circle.png", "rb") as img_file:
+    # Encode the image as base64
+    b64 = base64.b64encode(img_file.read()).decode()
+
+# Embed the image using Markdown, centered using HTML/CSS
+st.markdown(
+    f'<div style="display: flex; justify-content: center;"><img src="data:image/png;base64,{b64}" width="140"/></div>',
+    unsafe_allow_html=True
 )
-index = pinecone.Index('chatbot')
 
-index = pinecone.Index(index_name='chatbot')
+st.subheader("Med-Xplain")
+st.write(
+    "Welcome to Med-Xplain, a patient informational tool. We aim to help you learn more about your treatment options post-diagnosis.")
 
-st.subheader("Chatbot with Langchain, ChatGPT, Pinecone, and Streamlit")
+
 
 if 'responses' not in st.session_state:
     st.session_state['responses'] = ["How can I assist you?"]
@@ -36,14 +52,28 @@ if 'responses' not in st.session_state:
 if 'requests' not in st.session_state:
     st.session_state['requests'] = []
 
-llm = ChatOpenAI(model_name="gpt-3.5-turbo", openai_api_key="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")
+llm = ChatOpenAI(model_name="gpt-3.5-turbo", openai_api_key="")
 
 if 'buffer_memory' not in st.session_state:
             st.session_state.buffer_memory=ConversationBufferWindowMemory(k=3,return_messages=True)
 
 
-system_msg_template = SystemMessagePromptTemplate.from_template(template="""Answer the question as truthfully as possible using the provided context, 
-and if the answer is not contained within the text below, say 'I don't know'""")
+template_text = """
+        - Your primary goal is to provide information and guidance about medical treatment options based on the user's questions. Below is an example question; please answer accordingly.Don't include words like i am not a doctor,i am ai bot
+        - Question: 'What are the treatment options for asthma?'
+
+        Example:
+        - Question: 'Can you explain the different treatment options for asthma?'
+        - Answer: 'Certainly! There are several treatment options for asthma, including:
+          1. Inhalers (e.g., bronchodilators and corticosteroid inhalers) to relieve symptoms and reduce inflammation.
+          2. Corticosteroids (oral or inhaled) to control inflammation in the airways.
+          3. Immunotherapy for individuals with severe allergic asthma.
+          
+          Please note that the specific treatment plan for asthma can vary depending on the severity of the condition and individual patient needs. Med-Xplain is an assistive technology. Please consult your physician for further guidance and prescriptions.'
+        """
+
+
+system_msg_template = SystemMessagePromptTemplate.from_template(template=template_text)
 
 
 human_msg_template = HumanMessagePromptTemplate.from_template(template="{input}")
@@ -52,34 +82,6 @@ prompt_template = ChatPromptTemplate.from_messages([system_msg_template, Message
 
 conversation = ConversationChain(memory=st.session_state.buffer_memory, prompt=prompt_template, llm=llm, verbose=True)
 
-def find_match(input):
-    print(input)
-    input_em = model.encode(input).tolist()
-    result = index.query(input_em, top_k=1, includeMetadata=True)
-    print(result)
-    return result['matches'][0]['metadata']['text']
-    #return result['matches'][0]['metadata']['text']+"\n"+result['matches'][1]['metadata']['text']
-
-def query_refiner(conversation, query):
-
-    response = openai.Completion.create(
-    model="text-davinci-003",
-    prompt=f"Given the following user query and conversation log, formulate a question that would be the most relevant to provide the user with an answer from a knowledge base.\n\nCONVERSATION LOG: \n{conversation}\n\nQuery: {query}\n\nRefined Query:",
-    temperature=0.7,
-    max_tokens=256,
-    top_p=1,
-    frequency_penalty=0,
-    presence_penalty=0
-    )
-    return response['choices'][0]['text']
-
-def get_conversation_string():
-    conversation_string = ""
-    for i in range(len(st.session_state['responses'])-1):
-        
-        conversation_string += "Human: "+st.session_state['requests'][i] + "\n"
-        conversation_string += "Bot: "+ st.session_state['responses'][i+1] + "\n"
-    return conversation_string
 
 
 # container for chat history
@@ -87,21 +89,20 @@ response_container = st.container()
 # container for text box
 textcontainer = st.container()
 
-
 with textcontainer:
     query = st.text_input("Query: ", key="input")
-    if query:
-        with st.spinner("typing..."):
-            conversation_string = get_conversation_string()
-            # st.code(conversation_string)
-            refined_query = query_refiner(conversation_string, query)
-            st.subheader("Refined Query:")
-            st.write(refined_query)
-            context = find_match(refined_query)
-            # print(context)  
-            response = conversation.predict(input=f"Context:\n {context} \n\n Query:\n{query}")
-        st.session_state.requests.append(query)
-        st.session_state.responses.append(response) 
+    submit_button = st.button('Submit')
+    if submit_button:
+        if query: # Check if the query is not empty
+            with st.spinner("typing..."):
+                conversation_string = get_conversation_string()
+                response = conversation.predict(input=f"Query:\n{query}")
+                response = limit_words(response)
+            st.session_state.requests.append(query)
+            st.session_state.responses.append(response)
+
+ 
+
 with response_container:
     if st.session_state['responses']:
 
@@ -109,3 +110,14 @@ with response_container:
             message(st.session_state['responses'][i],key=str(i))
             if i < len(st.session_state['requests']):
                 message(st.session_state["requests"][i], is_user=True,key=str(i)+ '_user')
+
+# Now place feedback options at the bottom
+st.write("### Feedback")
+feedback_options = [1, 2, 3, 4, 5]
+feedback = st.selectbox("Please rate your experience (1=lowest, 5=highest):", feedback_options)
+
+# Add button to submit feedback
+feedback_button = st.button('Submit Feedback')
+
+if feedback_button:
+    st.success("Thank you.")
