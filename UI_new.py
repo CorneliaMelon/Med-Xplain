@@ -181,7 +181,6 @@ def run_conversation(content):
             tool_result = (
                     "Highlight the following links for my treatment options from the nhs, and also note that they are not a substitute for a physician's advice\t" + str(
                 call_nhs_search(query=" ".join(nhs_args))))
-            print(tool_result)
             # return tool_result,tool_name
         elif tool_name.startswith('pdf'):
             print("selected pdf")
@@ -189,7 +188,6 @@ def run_conversation(content):
                                              verbose=True)
             refined_query = query_refiner(response)
             context = find_match(refined_query)
-            print(context)
             tool_result = conversation.predict(input=f"Query:\n{context}")
             # tool_result = conversation.predict(input=f"Query:\n{response}")
             # print(tool_result)
@@ -214,7 +212,7 @@ def run_conversation(content):
             project_id=PROJECT_ID,
             messages=messages,
         )
-        print(second_response.body["data"])
+        # print(second_response.body["data"])
         return second_response.body["data"][0]["output"]
     else:
         return response
